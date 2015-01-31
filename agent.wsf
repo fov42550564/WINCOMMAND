@@ -1,0 +1,114 @@
+<job>
+<script language="JavaScript">
+
+
+function MK_LoadCharactor(strAgentPath)
+{
+	var strAgentName;
+	var objAgent = WScript.CreateObject("Agent.Control.2","agent_");
+	objAgent.Connected = true;
+	objAgent.Characters.Load(strAgentName, strAgentPath);
+	var objCharacter = objAgent.Characters.Character(strAgentName);
+	objCharacter.languageID = 1033;
+	return objCharacter;
+}
+
+
+function MK_AddMenu(objCharacter)
+{
+	objCharacter.Commands.RemoveAll();
+	objCharacter.Commands.Visible = true;
+	objCharacter.Commands.Add("RESET", "还原", "reset");
+	objCharacter.Commands.Add("EXIT", "退出", "exit");
+}
+
+function MK_MenuProc(menu)
+{
+	switch(menu.Name)
+	{
+	case "EXIT":
+		MK_Leave(objCharacter);
+		break;
+	case "RESET":
+		objCharacter.Play("RestPose");
+		break;
+	default:
+		break;
+	}	
+}
+
+
+function MK_Show(objCharacter)
+{
+	objCharacter.MoveTo(1120, 730);
+	objCharacter.Show();
+	objCharacter.MoveTo(1120, 630);
+	objCharacter.Play("Greeting");
+	objCharacter.Speak("Hello, how are you?") 
+	objCharacter.Play("Congratulate");
+}
+
+function MK_Leave(objCharacter)
+{
+	objCharacter.Play("GoodBye");
+	WScript.Quit();
+}
+
+function MK_MessageLoop()
+{
+	while (true)
+	{
+		WScript.Sleep(100);
+	}
+}
+
+
+
+/****************************************************
+		事件函数
+****************************************************/
+var NeverMoved = 0;
+var UserMoved = 1; 
+var ProgramMoved = 2; 
+var OtherProgramMoved = 3; 
+var SystemMoved = 4 
+
+function agent_command(menu)
+{
+	MK_MenuProc(menu);
+}
+
+function agent_move(CharacterID, X, Y, Cause)
+{
+	if(UserMoved == Cause)
+	{
+		objCharacter.MoveTo(1120, 630);
+		objCharacter.Speak("不要乱动我");
+		objCharacter.Play("RestPose");
+		objCharacter.Play("GetAttention");
+	}
+}
+
+
+function agent_click(CharacterID, Button, Shift, X, Y)
+{
+	if (1 == Button)
+	{
+		objCharacter.Speak("我能为你做些什么?");
+		objCharacter.Play("Alert");
+	}
+}
+
+
+</script>
+
+
+
+<script language="JavaScript">
+var strAgentPath = "C:\\COMMAND\\MNKYKING.ACS";
+var objCharacter = MK_LoadCharactor(strAgentPath);
+MK_AddMenu(objCharacter);
+MK_Show(objCharacter);
+MK_MessageLoop();
+</script>
+</job>

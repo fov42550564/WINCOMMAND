@@ -1,0 +1,116 @@
+<job>
+<script language="JavaScript">
+
+/*
+ * Predefined Clipboard Formats
+ */
+var CF_TEXT              = 1
+var CF_BITMAP            = 2
+var CF_METAFILEPICT      = 3
+var CF_SYLK              = 4
+var CF_DIF               = 5
+var CF_TIFF              = 6
+var CF_OEMTEXT           = 7
+var CF_DIB               = 8
+var CF_PALETTE           = 9
+var CF_PENDATA           = 10
+var CF_RIFF              = 11
+var CF_WAVE              = 12
+var CF_UNICODETEXT       = 13
+var CF_ENHMETAFILE       = 14
+
+
+/* Global Memory Flags */
+var GMEM_FIXED           = 0x0000
+var GMEM_MOVEABLE        = 0x0002
+var GMEM_NOCOMPACT       = 0x0010
+var GMEM_NODISCARD       = 0x0020
+var GMEM_ZEROINIT        = 0x0040
+var GMEM_MODIFY          = 0x0080
+var GMEM_DISCARDABLE     = 0x0100
+var GMEM_NOT_BANKED      = 0x1000
+var GMEM_SHARE           = 0x2000
+var GMEM_DDESHARE        = 0x2000
+var GMEM_NOTIFY          = 0x4000
+
+
+
+var dw = new ActiveXObject("DynamicWrapperX");
+
+dw.Register("user32.dll","OpenClipboard","i=h","r=l")
+dw.Register("user32.dll","CloseClipboard","r=l")
+dw.Register("user32.dll","GetClipboardData","i=u","r=h")
+dw.Register("user32.dll","SetClipboardData","i=uh","r=h")
+dw.Register("user32.dll","EmptyClipboard","r=l")
+dw.Register("Kernel32.dll","GlobalAlloc","i=uu","r=h")
+dw.Register("Kernel32.dll","GlobalFree","i=h","r=h")
+dw.Register("Kernel32.dll","GlobalLock","i=h","r=p")
+dw.Register("Kernel32.dll","GlobalUnlock","i=h","r=l")
+dw.Register("MSVCRT.dll","wcscpy","i=pw","r=p")
+
+
+function alert(s){WScript.Echo(s);}
+
+function GetCBData()
+{
+	var text = "";
+	if (dw.OpenClipboard(0))
+	{
+		 var hData = dw.GetClipboardData(CF_UNICODETEXT);
+		 var buffer = dw.GlobalLock(hData);
+		 text = dw.StrGet(buffer, "w");
+		 dw.GlobalUnlock(hData);   
+     dw.CloseClipboard(); 
+	}
+	return text;
+}
+
+function SetCBData(text)
+{
+	if (dw.OpenClipboard(0))
+	{
+		 dw.EmptyClipboard();   
+     var clipbuffer = dw.GlobalAlloc(GMEM_DDESHARE, (text.length+1)<<1);
+     buffer = dw.GlobalLock(clipbuffer);   
+     dw.wcscpy(buffer, text);   
+     dw.GlobalUnlock(clipbuffer);   
+     dw.SetClipboardData(CF_UNICODETEXT,clipbuffer);
+     dw.GlobalFree(clipbuffer);     
+     dw.CloseClipboard();  
+	}
+}
+
+
+function ShowHelp()
+{
+	var help = "Usage: \n\r" +
+						 "cb -set [text]\n\r"+
+						 "cb -get\n\r"+
+						 "cb -help";
+	alert(help);
+}
+
+
+function main()
+{
+	if (WScript.Arguments.Item(0) == "set")
+	{
+		var text = "";
+		for (var i=1; i<WScript.Arguments.length; i++)
+			text += WScript.Arguments.Item(i)+" ";
+		SetCBData(text);
+	}
+	else if (WScript.Arguments.Item(0) == "get")
+	{
+		alert(GetCBData());
+	}
+	else
+	{
+		ShowHelp();
+	}
+}
+
+main();
+
+</script>
+</job>

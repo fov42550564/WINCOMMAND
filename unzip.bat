@@ -1,0 +1,2 @@
+@echo off
+node -e "!function(){function e(e,r){r=r||e.replace('.zip',''),i.createReadStream(e).pipe(p.Extract({path:r}))}var p=require('unzip'),i=require('fs'),r=process.argv.splice(1);0==r.length?console.log('unzip zipName zipDir[zipName]'):e.apply(null,r)}();" %*

@@ -1,0 +1,306 @@
+<job>
+<script language="javascript">
+
+var NULL = 0
+var TRUE = 1
+var FALSE = 0
+var _MAX_PATH = 256;
+
+// file operations	
+var FO_MOVE           				 = 0x0001
+var FO_COPY           				 = 0x0002
+var FO_DELETE         				 = 0x0003
+var FO_RENAME         				 = 0x0004
+
+var FOF_MULTIDESTFILES         = 0x0001
+var FOF_CONFIRMMOUSE           = 0x0002
+var FOF_SILENT                 = 0x0004  // don't create progress/report
+var FOF_RENAMEONCOLLISION      = 0x0008
+var FOF_NOCONFIRMATION         = 0x0010  // Don't prompt the user.
+var FOF_WANTMAPPINGHANDLE      = 0x0020  // Fill in SHFILEOPSTRUCT.hNameMappings
+                                      		 // Must be freed using SHFreeNameMappings
+var FOF_ALLOWUNDO              = 0x0040
+var FOF_FILESONLY              = 0x0080  // on *.*, do only files
+var FOF_SIMPLEPROGRESS         = 0x0100  // means don't show names of files
+var FOF_NOCONFIRMMKDIR         = 0x0200  // don't confirm making any needed dirs
+var FOF_NOERRORUI              = 0x0400  // don't put up error UI
+var FOF_NOCOPYSECURITYATTRIBS  = 0x0800  // dont copy NT file Security Attributes
+
+//
+//  Code Page Default Values.
+//
+var CP_ACP                    = 0           // default to ANSI code page
+var CP_OEMCP                  = 1           // default to OEM  code page
+var CP_MACCP                  = 2           // default to MAC  code page
+var CP_THREAD_ACP             = 3           // current thread's ANSI code page
+var CP_SYMBOL                 = 42          // SYMBOL translations
+
+
+
+
+function memset(ptr, offset, val, type)
+{
+	offset = offset||0;
+	val = val||0;
+	type = type||"l";
+	return dw.NumPut(val, ptr, offset, type);
+}
+
+function memget(ptr, offset, type)
+{
+	offset = offset||0;
+	type = type||"l";
+	return dw.NumGet(ptr, offset, type);
+}
+
+
+function memsetx(ptr, arr, type)
+{
+	var step;
+	type = type||"l";
+	if (type=="l" || type=="u" || type=="h" || type=="p")
+		step = 4;
+	else if (type=="n" || type=="t")
+		step = 2;
+	else if (type=="c" || type=="b")
+		step = 1;
+	
+	for (var i=0; i<arr.length; i++)
+	{
+		dw.NumPut(arr[i], ptr, step*i, type);
+	}
+}
+
+
+function Ucs2ToGb(ptr)
+{
+	var gb_len = dw.WideCharToMultiByte(CP_ACP, 0, ptr, -1, NULL, 0, NULL, 0);
+	var gb = dw.calloc(gb_len, 1);   
+	dw.WideCharToMultiByte(CP_ACP, 0, ptr, -1, gb, gb_len, NULL, 0);
+	dw.strcpy(ptr, gb);
+	dw.free(gb);
+}
+
+
+function GbToUcs2(ptr)
+{
+	var ucs2_len = dw.MultiByteToWideChar(CP_ACP, 0, ptr, -1, NULL, 0);
+	var ucs2 = dw.calloc(ucs2_len, 2);   
+	dw.MultiByteToWideChar(CP_ACP,0, ptr, -1, ucs2, ucs2_len);
+	dw.wcscpy(ptr, ucs2);
+	dw.free(ucs2);
+}
+
+
+
+function str2ptr(str, type)
+{
+	type = type||"w";
+	var ptr = dw.StrPtr(str);
+	if (type == "s" || type == "S")
+		Ucs2ToGb(ptr);
+	return ptr;
+}
+
+
+function ptr2str(ptr, type)
+{
+	type = type||"w";
+	return dw.StrGet(ptr, type);
+}
+
+function alloc(n, ch)
+{
+	n=n||_MAX_PATH;
+	ch=ch||'\0';
+	return dw.Space(n, ch);
+}
+
+
+function alert(s)
+{
+	WScript.Echo(s);
+}
+
+function Trace(s)
+{
+	dw.OutputDebugStringW(s);
+}
+
+function sleep(s)
+{
+	WScript.Sleep(s);
+}
+
+
+function dectohex(val)
+{
+	if (val<0)
+		val += 256;
+	var dec = parseFloat(val); 
+	var str = dec.toString(16);
+	if (str.length == 1)
+		str = "0"+str;
+	return str;
+}
+
+
+function TraceBuf(buf, len)
+{
+	var str = "";
+	var ch;
+	for(var i=1; i <= len; i++)
+	{
+		ch = dw.NumGet(buf, i-1, "c");
+  		str += dectohex(ch) + " ";
+  	if (!(i&0xf))
+  		str += "\n"
+  	else if (!(i&0x7))
+  		str += "  ";
+  	
+  }
+  Trace(str);
+}
+
+function TraceParam(args)
+{
+	var str = "";
+	for (var i=0; i<args.length; i++)
+		str += " " + args[i];
+	Trace(str);
+}
+
+
+function RegisterAPI()
+{
+	dw.Register("Kernel32","GetCurrentDirectoryW","i=lW","r=l");
+	dw.Register("Shell32","SHFileOperation","i=p","r=l");
+	dw.Register("Kernel32","OutputDebugStringW","i=w");
+	dw.Register("kernel32.dll","WideCharToMultiByte","i=ulllllll","r=l");
+	dw.Register("kernel32.dll","MultiByteToWideChar","i=ulllll","r=l");
+	dw.Register("kernel32.dll","GetLastError","r=l");
+	dw.Register("MSVCRT.dll","calloc","i=ll","r=l");
+	dw.Register("MSVCRT.dll","free","i=l");
+	dw.Register("MSVCRT.dll","strcpy","i=pp","r=p");
+	dw.Register("MSVCRT.dll","wcscpy","i=pp","r=p");
+}
+
+
+
+function IsFullPath(pszPath)
+{
+	var reg = /^[A-Za-z]:\\/i;
+	if (reg.test(pszPath)==0)
+	{
+		return FALSE;
+	}
+	return TRUE;
+}
+
+
+
+function SHFILEOPSTRUCT(wFunc, pFrom, pTo, fFlags)
+{
+	this.hwnd = NULL; 
+  this.wFunc = wFunc||FO_DELETE; 
+  this.pFrom = pFrom||NULL; 
+  this.pTo = pTo||NULL; 
+  this.fFlags = fFlags||(FOF_SILENT|FOF_NOERRORUI); 
+  this.fAnyOperationsAborted = NULL; 
+  this.hNameMappings = NULL; 
+  this.lpszProgressTitle = NULL; 
+	
+	this.buf = alloc(28);
+	
+	this.SetBuf = function()
+	{
+		memset(this.buf,0,this.hwnd);
+		memset(this.buf,4,this.wFunc);
+		memset(this.buf,8,this.pFrom);
+		memset(this.buf,12,this.pTo);
+		memset(this.buf,16,this.fFlags);
+		memset(this.buf,20,this.fAnyOperationsAborted);
+		memset(this.buf,24,this.hNameMappings);
+		memset(this.buf,28,this.lpszProgressTitle);
+	}
+	
+	this.SetBuf();
+}
+
+
+function Del(pszPath, flag)
+{
+	var curPath = alloc(_MAX_PATH);
+	var destPath;
+	var destPathPtr;
+	var sf;
+	
+	if (IsFullPath(pszPath))
+	{
+		destPath = pszPath;
+	}
+	else
+	{
+		dw.GetCurrentDirectoryW(_MAX_PATH, curPath);
+		destPath = curPath+"\\"+pszPath;
+	}
+
+	destPathPtr = str2ptr(destPath, "s");
+	
+	TraceBuf(destPathPtr, 50);
+	sf = new SHFILEOPSTRUCT(FO_DELETE, destPathPtr);
+	sf.fFlags = FOF_SILENT|FOF_NOERRORUI|FOF_NOCONFIRMATION;
+	sf.fFlags |= (flag) ? FOF_ALLOWUNDO: 0;
+	sf.SetBuf();
+	dw.SHFileOperation(sf.buf);
+}
+
+
+function GetParameters(flag)
+{
+	for (var i=0; i<WScript.Arguments.length; i++)
+	{
+		if (flag=="-name")
+		{
+			if (WScript.Arguments.Item(i).charAt(0)!='-')
+			{
+				return WScript.Arguments.Item(i);
+			}
+		}
+		else if (WScript.Arguments.Item(i)==flag)
+		{
+				return 1;
+		}
+	}
+	return 0;
+}
+
+
+
+
+var dw;
+
+function main()
+{
+	var file="";
+	var type = 0;
+	var argc=WScript.Arguments.length;
+	
+	if (argc==0)
+		return;
+	
+	file = GetParameters("-name");
+	if (file==0)
+		return;
+	type = !GetParameters("-d")
+	
+	dw = new ActiveXObject("DynamicWrapperX");
+	RegisterAPI();
+	Del(file, type);
+}
+
+
+main();
+
+</script>
+</job>

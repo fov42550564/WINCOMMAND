@@ -1,0 +1,226 @@
+<job>
+<script language="javascript">
+
+//定义常量
+
+var GWL_STYLE = -16;
+var WS_CAPTION = 0x00C00000;
+
+var SWP_NOSIZE = 0x0001;
+var SWP_NOMOVE = 0x0002;
+var SW_SHOWMAXIMIZED = 3;
+var SW_SHOWNORMAL = 1;
+
+var HWND_TOP = 0;
+var HWND_BOTTOM = 1;
+var HWND_TOPMOST = -1;
+var HWND_NOTOPMOST = -2;
+
+var TRUE = 1;
+var FALSE = 0;
+var NULL = 0;
+var DEF_STR_LEN = 128;
+
+function alert(s)
+{
+	WScript.Echo(s);
+}
+
+function exit(code)
+{
+	WScript.Quit(code);
+}
+
+function windowsAPI()
+{
+	this.winTitle = "";
+	this.wrap = NULL;
+	this.hWnd = NULL;
+	this.count = 0;
+	
+	this.Initialization();
+}
+
+windowsAPI.prototype = {
+	RegisterAPI: function()
+	{
+		this.wrap.Register("USER32.DLL", "FindWindowW", "i=lw", "r=h");
+		this.wrap.Register("USER32.DLL", "GetWindowTextW", "i=lwl", "r=h");
+		this.wrap.Register("USER32.DLL", "GetWindowLong", "i=hl", "r=l");
+		this.wrap.Register("USER32.DLL", "SetWindowLong", "i=hll", "r=l");
+		this.wrap.Register("USER32.DLL", "EnumWindows", "i=pl", "r=l");
+		this.wrap.Register("USER32.DLL", "IsWindowEnabled", "i=h", "r=l");
+		this.wrap.Register("USER32.DLL", "IsWindowVisible", "i=h", "r=l");
+		this.wrap.Register("USER32.DLL", "IsWindow", "i=h", "r=l");
+		this.wrap.Register("USER32.DLL", "ShowWindow", "i=hl", "r=l");
+		this.wrap.Register("USER32.DLL", "SetWindowPos", "i=hhllllu", "r=l");
+	},
+	RegWndProc: function(proc)
+	{
+		return this.wrap.RegisterCallback(proc, "i=hp", "r=l");
+	},
+	alloc: function(n, ch)
+	{
+		n=n||DEF_STR_LEN;
+		ch=ch||'\0';
+		return this.wrap.Space(n, ch);
+	},
+	GetWinHandle: function(title)
+	{
+		this.winTitle = title;
+		this.hWnd = this.wrap.FindWindowW(NULL, this.winTitle);
+		if (NULL == this.hWnd)
+		{
+			alert("Can't find Window!");
+			exit(0);
+		}
+	},
+	
+	Initialization: function()
+	{
+		this.wrap = new ActiveXObject("DynamicWrapperX");
+		this.RegisterAPI();
+	},
+	
+	DeleteWindowTitle: function(hWnd)
+	{
+		style = this.wrap.GetWindowLong(hWnd,GWL_STYLE);   
+    style &= ~(WS_CAPTION);   
+    this.wrap.SetWindowLong(hWnd,GWL_STYLE,style);
+	},
+	
+	AddWindowTitle: function(hWnd)
+	{
+		 style = this.wrap.GetWindowLong(hWnd,GWL_STYLE);
+	   style |= WS_CAPTION;
+	   this.wrap.SetWindowLong(hWnd,GWL_STYLE,style);
+	},
+	
+	SetWindowMax: function()
+	{
+		this.wrap.ShowWindow(this.hWnd, SW_SHOWMAXIMIZED);
+		this.DeleteWindowTitle(this.hWnd);
+	},
+	
+	SetWindowNormal: function()
+	{
+		this.AddWindowTitle(this.hWnd);
+		this.wrap.ShowWindow(this.hWnd, SW_SHOWNORMAL);
+	},
+	
+	SetWindowTop: function()
+	{
+		this.wrap.SetWindowPos(this.hWnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE|SWP_NOSIZE);
+	},
+	
+	SetWindowNotTop: function()
+	{
+		this.wrap.SetWindowPos(this.hWnd, HWND_NOTOPMOST, 0, 0, 0, 0, SWP_NOMOVE|SWP_NOSIZE);
+	},
+	
+	SetWindowSize: function(width, height)
+	{
+		this.wrap.SetWindowPos(this.hWnd, HWND_TOP, 0, 0, --width, --height, SWP_NOMOVE);
+	}
+};
+
+
+function EnumWindowsProc(hWnd,lParam)
+{	
+	var title = wapi.alloc(DEF_STR_LEN,0);
+	if (wapi.wrap.IsWindow(hWnd) && wapi.wrap.IsWindowVisible(hWnd) && wapi.wrap.IsWindowEnabled(hWnd))
+	{
+		wapi.wrap.GetWindowTextW(hWnd, title, DEF_STR_LEN);
+	
+		var reg = new RegExp(wapi.winTitle, "i");
+		//if (title.match(reg))
+		if (reg.test(title))
+		{
+			if (1)//wapi.count == 1)
+			{
+				alert(title);
+				wapi.hWnd = hWnd;
+				return 0;
+			}
+			else
+				wapi.count++;
+		}
+	}
+	return 1;
+}
+
+function main()
+{
+	if (WScript.Arguments.Length == 0)
+	{
+		alert("Invalid Param");
+		exit(0);
+	}
+
+	var op = WScript.Arguments(0);
+	
+	if (op == "-h")
+	{
+		alert("winset -m /t:title--SetWindowMax\n"+ 
+					"winset -n /t:title--SetWindowNormal\n"+ 
+					"winset -t /t:title--SetWindowTop\n"+ 
+					"winset -nt /t:title--SetWindowNotTop\n"+ 
+					"winset -s /t:title /w:width /h:height--SetWindowSize\n");
+		exit(0);
+	}
+	
+	wapi = new windowsAPI();
+	var title = WScript.Arguments.Named.Item("t");
+	var width = WScript.Arguments.Named.Item("w");
+	var height = WScript.Arguments.Named.Item("h");
+	
+	if (title == null)
+		//title = "QQ仙境"
+		title = "猛將傳"
+	if (width == null)
+		width = 1000	
+	if (height == null)
+		height = 700
+	
+	//wapi.GetWinHandle(title);
+	wapi.winTitle = title;
+	var regEnumWindowsProc = wapi.RegWndProc(EnumWindowsProc);
+	wapi.wrap.EnumWindows(regEnumWindowsProc, 0);
+
+	if (NULL == wapi.hWnd)
+	{
+			alert("Can't find Window!");
+			exit(0);
+	}
+
+	if (op == "-m")
+	{
+		wapi.SetWindowMax();
+	}
+	else if (op == "-n")
+	{
+		wapi.SetWindowNormal();
+	}
+	else if (op == "-t")
+	{
+		wapi.SetWindowTop();
+	}
+	else if (op == "-nt")
+	{
+		wapi.SetWindowNotTop();
+	}
+	else if (op == "-s")
+	{
+		wapi.SetWindowSize(width, height);
+	}
+	else
+	{
+		alert("Invalid Param");
+	}
+}
+var wapi;
+
+main();
+
+</script>
+</job>
