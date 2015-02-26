@@ -1,7 +1,10 @@
 var http = require('http'),
     path = require('path'),
     fs = require('fs'),
-    JSZip = require('jszip');
+    JSZip = require('jszip'),
+    IP = "192.168.211.106",
+    PORT = "3001",
+    finish_cnt = 0;
 
 
 function zipRecurse(zip, dir, zipDir) {
@@ -20,10 +23,10 @@ function zipFolder(zip, dir, zipDir) {
     return zip.generate({base64:false, compression:'DEFLATE'});
 }
 
-function postFileToServer(file) {
+function postFileToServer(file, cnt) {
     var options = {
-        hostname: '192.168.211.102',
-        port: 3001,
+        hostname: IP,
+        port: PORT,
         path: '/postfile',
         method: 'POST'
     };
@@ -43,19 +46,25 @@ function postFileToServer(file) {
         http.request(options, function(res) {
             res.on('data', function () {
                 console.log('success');
+                finish_cnt++;
+                if (finish_cnt>=cnt) {
+                    disconnectServer();
+                }
             }).on('error', function(e) {
                 console.log('error: ' + e.message);
+                disconnectServer();
             });
         }).end(zipData, "binary");
     } else {
         console.log("error: no file");
+        disconnectServer();
     }
 }
 
-function getFileFromServer(file) {
+function getFileFromServer(file, cnt) {
     var options = {
-        hostname: '192.168.211.102',
-        port: 3001,
+        hostname: IP,
+        port: PORT,
         path: "/getfile?file="+file,
         agent: false
     };
@@ -63,6 +72,27 @@ function getFileFromServer(file) {
         res.pipe(require('unzip').Extract({path: "."}));
         res.on('end', function(){
            console.log("get "+file+" success");
+            finish_cnt++;
+            if (finish_cnt>=cnt) {
+                disconnectServer();
+            }
+        });
+    }).on('error', function(e) {
+        console.log("error: " + e.message);
+        disconnectServer();
+    });
+}
+
+function disconnectServer() {
+    var options = {
+        hostname: IP,
+        port: PORT,
+        path: "/disconnect",
+        agent: false
+    };
+    var req = http.get(options, function(res) {
+        res.on('end', function(){
+           console.log("finish");
         });
     }).on('error', function(e) {
         console.log("error: " + e.message);
@@ -73,15 +103,15 @@ var params = process.argv.slice(2);
 if (params[0] == 'put') {
     var files = params.slice(1);
     for (var i in files) {
-        postFileToServer(files[i]);
+        postFileToServer(files[i], files.length);
     }
 } else if (params[0] == 'get') {
     var files = params.slice(1);
     for (var i in files) {
-        getFileFromServer(files[i]);
+        getFileFromServer(files[i], files.length);
     }
 } else {
     console.log("Usage: put/get files folders");
-    console.log("     node client.js put xx.txt xx");
-    console.log("     node client.js get xx.txt xx");
+    console.log("     xf put xx.txt xx");
+    console.log("     xf get xx.txt xx");
 }

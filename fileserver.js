@@ -63,6 +63,11 @@ app.get('/getfile', function(req, res){
     }
 });
 
+app.get('/disconnect', function(req, res){
+    res.send("success");
+    setTimeout(function(){process.exit();}, 100);
+});
+
 
 http.createServer(app).listen(app.get('port'), function(){
     console.log("Express server http://localhost:" + app.get('port'));
